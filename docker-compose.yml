@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  rocketchat:
+    image: rocketchat/rocket.chat:latest
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/rocketchat?replicaSet=rs0
+      - ROOT_URL=http://localhost:3000
+      - MONGO_OPLOG_URL=mongodb://mongo:27017/local?replicaSet=rs0
+    ports:
+      - 3000:3000
+    depends_on:
+      - mongo
+      - mongo-init-replica
+    networks:
+      - rocketchatnet
+
+  mongo:
+    image: mongo:4.4
+    command: mongod --replSet rs0
+    volumes:
+      - ./data/db:/data/db
+    networks:
+      - rocketchatnet
+
+  mongo-init-replica:
+    image: mongo:4.4
+    command: >
+      bash -c "
+        for i in `seq 1 30`; do
+          mongo mongo:27017/rocketchat --eval 'rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"mongo:27017\"}]})' && s=$$? && break || s=$$?; echo $i; sleep 1;
+        done; exit $$s"
+    depends_on:
+      - mongo
+    networks:
+      - rocketchatnet
+
+networks:
+  rocketchatnet:
